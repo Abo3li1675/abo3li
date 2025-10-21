@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('owner') || hasRole('editor');
+    }
+
+    function isPremiumUser() {
+      let user = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return user.subscriptionStatus == 'active' &&
+             user.subscriptionEnd > request.time;
+    }
+
+    function validateUserData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['name', 'email', 'createdAt']) &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.matches('.*@.*\\..*');
+    }
+
+    function validateProgramData() {
+      let data = request.resource.data;
+      return data.keys().hasAll(['title', 'description', 'category', 'level']) &&
+             data.title.ar is string && data.title.en is string &&
+             data.category in ['gym', 'home', 'bodyweight', 'cardio'] &&
+             data.level in ['beginner', 'intermediate', 'advanced'];
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) && validateUserData();
+      allow update: if isOwner(userId) && validateUserData();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Programs collection
+    match /programs/{programId} {
+      allow read: if true; // Public read
+      allow create: if isAdmin() && validateProgramData();
+      allow update: if isAdmin() && validateProgramData();
+      allow delete: if isAdmin();
+    }
+
+    // Exercises collection
+    match /exercises/{exerciseId} {
+      allow read: if true; // Public read
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Workouts collection (user-specific)
+    match /workouts/{userId}/{workoutId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) &&
+                    request.resource.data.keys().hasAll(['programId', 'exerciseId', 'completedAt']);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Progress collection (user-specific)
+    match /progress/{userId}/{progressId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isOwner(userId) &&
+                    request.resource.data.keys().hasAll(['date', 'weight']);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Time-lapse collection (user-specific)
+    match /timelapse/{userId}/{videoId} {
+      allow read: if isOwner(userId) ||
+                     (resource.data.isPublic == true) ||
+                     isAdmin();
+      allow create: if isAuthenticated() &&
+                       isOwner(userId) &&
+                       isPremiumUser();
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Recipes collection
+    match /recipes/{recipeId} {
+      allow read: if true; // Public read
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Challenges collection
+    match /challenges/{challengeId} {
+      allow read: if true; // Public read
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Achievements collection (user-specific)
+    match /achievements/{userId}/{achievementId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated(); // Can be created by cloud functions
+      allow update: if false; // Achievements are immutable
+      allow delete: if isAdmin();
+    }
+
+    // Posts collection (community)
+    match /posts/{postId} {
+      allow read: if true; // Public read
+      allow create: if isAuthenticated() &&
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.content.size() <= 500;
+      allow update: if isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true; // Public read
+        allow create: if isAuthenticated() &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.text.size() <= 200;
+        allow update: if isOwner(resource.data.userId);
+        allow delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+    }
+
+    // Analytics collection (admin only)
+    match /analytics/{document=**} {
+      allow read: if isAdmin();
+      allow write: if false; // Only cloud functions can write
+    }
+
+    // App configuration (admin only)
+    match /config/{document=**} {
+      allow read: if true; // Public read for app config
+      allow write: if isAdmin();
+    }
+  }
+}
