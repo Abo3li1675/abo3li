@@ -1,0 +1,94 @@
+# Flutter/Dart
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/flutter_*.png
+mobile/linked_*.ds
+mobile/unlinked.ds
+mobile/unlinked_spec.ds
+mobile/*.iml
+mobile/*.lock
+mobile/pubspec.lock
+
+# iOS
+mobile/ios/Flutter/flutter_export_environment.sh
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+mobile/ios/.symlinks/
+mobile/ios/Pods/
+mobile/ios/.generated/
+mobile/ios/Flutter/App.framework
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Generated.xcconfig
+mobile/ios/Runner/GeneratedPluginRegistrant.*
+mobile/ios/.DS_Store
+
+# Android
+mobile/android/app/debug
+mobile/android/app/profile
+mobile/android/app/release
+mobile/android/.gradle
+mobile/android/gradle
+mobile/android/captures/
+mobile/android/gradlew
+mobile/android/gradlew.bat
+mobile/android/local.properties
+mobile/android/**/GeneratedPluginRegistrant.java
+mobile/android/.DS_Store
+
+# Web
+mobile/web/
+
+# Firebase
+mobile/lib/firebase_options.dart
+mobile/android/app/google-services.json
+mobile/ios/Runner/GoogleService-Info.plist
+
+# Next.js
+dashboard/.next/
+dashboard/out/
+dashboard/node_modules/
+dashboard/.env.local
+dashboard/.env.development.local
+dashboard/.env.test.local
+dashboard/.env.production.local
+dashboard/.vercel
+dashboard/*.log
+dashboard/npm-debug.log*
+dashboard/yarn-debug.log*
+dashboard/yarn-error.log*
+
+# Firebase Functions
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/*.log
+
+# General
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.env
+.env.local
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+Thumbs.db
