@@ -1,0 +1,9 @@
+node_modules/
+dist/
+packages/
+audio-cache/
+tts-models/*.onnx
+tts-models/*.onnx.json
+*.log
+.DS_Store
+.env

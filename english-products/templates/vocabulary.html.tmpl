@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#2a6df4">
+  <title>{{LESSON_TITLE}} · تعلّم 1000 كلمة إنجليزية</title>
+  <style>{{SHARED_CSS}}</style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div>
+        <h1>{{LESSON_TITLE}}</h1>
+        <div class="meta"><span id="lesson-meta"></span> · <span class="en">Level {{LESSON_LEVEL}}</span></div>
+      </div>
+      <button class="icon-btn" id="theme-toggle" title="تبديل الوضع الداكن">◐</button>
+    </header>
+
+    <div class="progress-meta">
+      <span>التقدم الإجمالي</span>
+      <span><span id="mastery">0</span>%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-bar-fill" id="mastery-bar" style="width:0%"></div></div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="learn">📚 تعلّم</button>
+      <button class="tab" data-tab="review">🔁 مراجعة</button>
+      <button class="tab" data-tab="quiz">🎯 اختبار</button>
+      <button class="tab" data-tab="list">📋 القائمة</button>
+    </div>
+
+    <!-- LEARN: flashcards -->
+    <section class="panel" data-tab="learn">
+      <div class="row between mb-2">
+        <span class="muted small" id="learn-counter">0 / 0</span>
+        <span class="muted small">اضغط على البطاقة لقلبها</span>
+      </div>
+      <div class="flashcard-wrap" id="card-wrap">
+        <div class="flashcard" id="card">
+          <div class="flashcard-face front">
+            <span class="flashcard-pos" id="card-pos"></span>
+            <div class="flashcard-en" id="card-en">—</div>
+            <div class="flashcard-ipa" id="card-ipa"></div>
+            <button class="icon-btn" id="card-play" title="استمع">🔊</button>
+            <div class="flashcard-hint">انقر للترجمة</div>
+          </div>
+          <div class="flashcard-face back">
+            <div class="flashcard-ar" id="card-ar">—</div>
+            <div class="flashcard-example">
+              <div class="en" id="card-example-en"></div>
+              <div id="card-example-ar" class="muted"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="srs-bar">
+        <button class="btn danger" id="card-wrong">لم أعرفها</button>
+        <button class="btn success" id="card-right">عرفتها</button>
+      </div>
+    </section>
+
+    <!-- REVIEW: leitner dashboard -->
+    <section class="panel hidden" data-tab="review">
+      <h3 class="panel-title">صناديق التكرار المتباعد (Leitner)</h3>
+      <div class="leitner-grid" id="leitner-grid"></div>
+      <p class="muted small">كل صندوق يحتوي كلمات تحتاج المراجعة بعد فترة معينة (1 يوم، 3 أيام، أسبوع، أسبوعان، شهر). أجب صح لترقية الكلمة، وأجب خطأ لإعادتها للصندوق الأول.</p>
+      <div class="row mt-2">
+        <button class="btn ghost sm" id="reset-progress">إعادة تعيين التقدم</button>
+        <button class="btn ghost sm" id="export-progress">تصدير</button>
+      </div>
+    </section>
+
+    <!-- QUIZ -->
+    <section class="panel hidden" data-tab="quiz">
+      <div id="quiz-host"></div>
+    </section>
+
+    <!-- LIST -->
+    <section class="panel hidden" data-tab="list">
+      <h3 class="panel-title">كل كلمات الدرس</h3>
+      <div id="word-list"></div>
+    </section>
+
+    <footer class="mt-3 center muted small">
+      <span>تاريخ البناء: {{BUILD_DATE}}</span>
+    </footer>
+  </div>
+
+  <script>{{SHARED_JS}}</script>
+  <script>
+  (function() {
+    const SL = window.SharedLib;
+    const LESSON = {{LESSON_DATA_JSON}};
+    const SPRITE_MAP = {{SPRITE_MAP_JSON}};
+    const SPRITE_B64 = "{{AUDIO_SPRITE_B64}}";
+    const PRODUCT_ID = "{{PRODUCT_ID}}";
+    const LESSON_ID = "{{LESSON_ID}}";
+
+    SL.Theme.init();
+    document.getElementById("theme-toggle").addEventListener("click", () => SL.Theme.toggle());
+
+    const player = new SL.AudioSpritePlayer(SPRITE_B64, SPRITE_MAP);
+    const ids = LESSON.words.map(w => w.en);
+    const leitner = new SL.Leitner(PRODUCT_ID, LESSON_ID, ids);
+
+    document.getElementById("lesson-meta").textContent = LESSON.words.length + " كلمة";
+
+    /* ---------- Learn tab (flashcards) ---------- */
+    const card = document.getElementById("card");
+    const learnState = { queue: [], idx: 0 };
+
+    function rebuildQueue() {
+      // due cards first, then new
+      const now = Date.now();
+      const due = leitner.dueCards(ids, now);
+      learnState.queue = due.length ? due : ids.slice();
+      learnState.idx = 0;
+    }
+
+    function currentWord() {
+      const en = learnState.queue[learnState.idx];
+      return LESSON.words.find(w => w.en === en);
+    }
+
+    function renderCard() {
+      const w = currentWord();
+      if (!w) { renderDone(); return; }
+      card.classList.remove("flipped");
+      document.getElementById("card-en").textContent = w.en;
+      document.getElementById("card-pos").textContent = w.pos || "";
+      document.getElementById("card-pos").style.display = w.pos ? "inline-block" : "none";
+      document.getElementById("card-ipa").textContent = w.ipa || "";
+      document.getElementById("card-ar").textContent = w.ar;
+      document.getElementById("card-example-en").textContent = w.example_en || "";
+      document.getElementById("card-example-ar").textContent = w.example_ar || "";
+      document.getElementById("learn-counter").textContent = (learnState.idx + 1) + " / " + learnState.queue.length;
+    }
+
+    function renderDone() {
+      const host = document.querySelector('[data-tab="learn"]');
+      host.innerHTML =
+        '<div class="done-state">' +
+        '<div class="emoji">🎉</div>' +
+        '<h2>أحسنت! انتهيت من جلسة المراجعة.</h2>' +
+        '<p>عد لاحقاً عندما تحين مراجعة الكلمات في صناديق Leitner.</p>' +
+        '<button class="btn mt-2" onclick="location.reload()">جلسة جديدة</button>' +
+        '</div>';
+    }
+
+    function nextCard() {
+      learnState.idx++;
+      if (learnState.idx >= learnState.queue.length) renderDone();
+      else renderCard();
+      updateMastery();
+      renderLeitner();
+    }
+
+    card.addEventListener("click", () => card.classList.toggle("flipped"));
+
+    document.getElementById("card-play").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const w = currentWord();
+      if (w) player.play("w:" + w.en);
+    });
+    document.getElementById("card-right").addEventListener("click", () => {
+      const w = currentWord(); if (!w) return;
+      leitner.promote(w.en); SL.toast("صح! 🎯"); nextCard();
+    });
+    document.getElementById("card-wrong").addEventListener("click", () => {
+      const w = currentWord(); if (!w) return;
+      leitner.demote(w.en); SL.toast("سنراجعها قريباً", 1400); nextCard();
+    });
+
+    /* ---------- Review/Leitner ---------- */
+    function renderLeitner() {
+      const grid = document.getElementById("leitner-grid");
+      const counts = leitner.counts(ids);
+      const labels = ["يوميا", "3 أيام", "أسبوع", "أسبوعان", "شهر"];
+      grid.innerHTML = "";
+      counts.forEach((c, i) => {
+        const div = SL.el("div", { class: "leitner-box" + (c > 0 ? " active" : "") },
+          SL.el("span", { class: "count" }, String(c)),
+          SL.el("span", { class: "label" }, "صندوق " + (i + 1) + " · " + labels[i])
+        );
+        grid.appendChild(div);
+      });
+    }
+
+    document.getElementById("reset-progress").addEventListener("click", () => {
+      if (confirm("هل تريد إعادة تعيين تقدمك في هذا الدرس؟")) {
+        leitner.reset();
+        SL.toast("تم إعادة التعيين");
+        rebuildQueue(); renderCard(); renderLeitner(); updateMastery();
+      }
+    });
+
+    document.getElementById("export-progress").addEventListener("click", () => {
+      const data = JSON.stringify(leitner.state, null, 2);
+      const blob = new Blob([data], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = SL.el("a", { href: url, download: LESSON.id + "-progress.json" });
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    /* ---------- Mastery ---------- */
+    function updateMastery() {
+      const m = leitner.mastery(ids);
+      document.getElementById("mastery").textContent = m;
+      document.getElementById("mastery-bar").style.width = m + "%";
+    }
+
+    /* ---------- Quiz ---------- */
+    const QUIZ_TYPES = ["mcq-en2ar", "mcq-ar2en", "type-en", "match"];
+    const quizHost = document.getElementById("quiz-host");
+    let quizState = null;
+
+    function startQuiz() {
+      const pool = SL.shuffle(LESSON.words).slice(0, Math.min(10, LESSON.words.length));
+      quizState = { pool, idx: 0, score: 0, types: pool.map(() => QUIZ_TYPES[Math.floor(Math.random() * QUIZ_TYPES.length)]) };
+      renderQuiz();
+    }
+
+    function renderQuiz() {
+      if (!quizState) { return startQuiz(); }
+      if (quizState.idx >= quizState.pool.length) { renderQuizDone(); return; }
+      const w = quizState.pool[quizState.idx];
+      const type = quizState.types[quizState.idx];
+      quizHost.innerHTML = "";
+      const head = SL.el("div", { class: "row between mb-2" },
+        SL.el("span", { class: "muted small" }, "سؤال " + (quizState.idx + 1) + " / " + quizState.pool.length),
+        SL.el("span", { class: "muted small" }, "النتيجة: " + quizState.score)
+      );
+      quizHost.appendChild(head);
+      if (type === "mcq-en2ar") renderMcqEnToAr(w);
+      else if (type === "mcq-ar2en") renderMcqArToEn(w);
+      else if (type === "type-en") renderTypeEn(w);
+      else if (type === "match") renderMatch();
+    }
+
+    function nextQuiz(correct) {
+      if (correct) quizState.score++;
+      quizState.idx++;
+      setTimeout(renderQuiz, 900);
+    }
+
+    function renderMcqEnToAr(w) {
+      const distractors = SL.shuffle(LESSON.words.filter(x => x.en !== w.en)).slice(0, 3).map(x => x.ar);
+      const options = SL.shuffle([w.ar, ...distractors]);
+      const q = SL.el("div", { class: "quiz-question" },
+        SL.el("span", null, "ما معنى "),
+        SL.el("span", { class: "en bold" }, w.en),
+        SL.el("span", null, " ؟")
+      );
+      const playBtn = SL.el("button", { class: "icon-btn", onclick: () => player.play("w:" + w.en) }, "🔊");
+      quizHost.appendChild(SL.el("div", { class: "row mb-2" }, q, playBtn));
+      const opts = SL.el("div", { class: "quiz-options" });
+      options.forEach(opt => {
+        const btn = SL.el("button", { class: "quiz-option" }, opt);
+        btn.addEventListener("click", () => {
+          const correct = opt === w.ar;
+          btn.classList.add(correct ? "correct" : "wrong");
+          if (!correct) opts.querySelectorAll(".quiz-option").forEach(b => { if (b.textContent === w.ar) b.classList.add("correct"); });
+          opts.querySelectorAll(".quiz-option").forEach(b => b.disabled = true);
+          if (correct) leitner.promote(w.en); else leitner.demote(w.en);
+          updateMastery(); renderLeitner();
+          nextQuiz(correct);
+        });
+        opts.appendChild(btn);
+      });
+      quizHost.appendChild(opts);
+    }
+
+    function renderMcqArToEn(w) {
+      const distractors = SL.shuffle(LESSON.words.filter(x => x.en !== w.en)).slice(0, 3).map(x => x.en);
+      const options = SL.shuffle([w.en, ...distractors]);
+      quizHost.appendChild(SL.el("div", { class: "quiz-question" },
+        "اختر الكلمة الإنجليزية: ",
+        SL.el("span", { class: "bold" }, w.ar)
+      ));
+      const opts = SL.el("div", { class: "quiz-options" });
+      options.forEach(opt => {
+        const btn = SL.el("button", { class: "quiz-option en" }, opt);
+        btn.addEventListener("click", () => {
+          const correct = opt === w.en;
+          btn.classList.add(correct ? "correct" : "wrong");
+          if (!correct) opts.querySelectorAll(".quiz-option").forEach(b => { if (b.textContent === w.en) b.classList.add("correct"); });
+          opts.querySelectorAll(".quiz-option").forEach(b => b.disabled = true);
+          if (correct) leitner.promote(w.en); else leitner.demote(w.en);
+          updateMastery(); renderLeitner();
+          nextQuiz(correct);
+        });
+        opts.appendChild(btn);
+      });
+      quizHost.appendChild(opts);
+    }
+
+    function renderTypeEn(w) {
+      quizHost.appendChild(SL.el("div", { class: "quiz-question" },
+        "اكتب الترجمة الإنجليزية لكلمة: ",
+        SL.el("span", { class: "bold" }, w.ar)
+      ));
+      const input = SL.el("input", { class: "quiz-input", placeholder: "اكتب الكلمة...", autocapitalize: "off", autocomplete: "off" });
+      const submit = SL.el("button", { class: "btn mt-2" }, "تحقق");
+      const fb = SL.el("div", null);
+      quizHost.appendChild(input);
+      quizHost.appendChild(submit);
+      quizHost.appendChild(fb);
+      function check() {
+        const ans = input.value.trim();
+        const ok = SL.normalize(ans) === SL.normalize(w.en);
+        input.classList.add(ok ? "correct" : "wrong");
+        input.disabled = true; submit.disabled = true;
+        fb.appendChild(SL.el("div", { class: "quiz-feedback " + (ok ? "correct" : "wrong") },
+          ok ? "✅ صحيح!" : ("❌ الإجابة الصحيحة: " + w.en)
+        ));
+        if (ok) leitner.promote(w.en); else leitner.demote(w.en);
+        updateMastery(); renderLeitner();
+        nextQuiz(ok);
+      }
+      submit.addEventListener("click", check);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") check(); });
+      setTimeout(() => input.focus(), 100);
+    }
+
+    function renderMatch() {
+      const sample = SL.shuffle(LESSON.words).slice(0, 4);
+      quizHost.appendChild(SL.el("div", { class: "quiz-question" }, "اختر الزوج المتطابق:"));
+      const wrap = SL.el("div", { class: "match-grid" });
+      const ens = SL.shuffle(sample.map(s => ({ side: "en", key: s.en, text: s.en })));
+      const ars = SL.shuffle(sample.map(s => ({ side: "ar", key: s.en, text: s.ar })));
+      const all = ens.concat(ars);
+      let selected = null;
+      let matched = 0;
+      function tryMatch(a, b) {
+        if (a.key === b.key && a.side !== b.side) {
+          a.el.classList.remove("selected"); b.el.classList.remove("selected");
+          a.el.classList.add("matched"); b.el.classList.add("matched");
+          matched++;
+          leitner.promote(a.key);
+          if (matched === sample.length) { updateMastery(); renderLeitner(); nextQuiz(true); }
+        } else {
+          a.el.classList.add("miss"); b.el.classList.add("miss");
+          leitner.demote(a.key);
+          setTimeout(() => {
+            a.el.classList.remove("miss", "selected"); b.el.classList.remove("miss", "selected");
+          }, 600);
+        }
+      }
+      all.forEach(item => {
+        const e = SL.el("div", { class: "match-item " + (item.side === "en" ? "en" : "") }, item.text);
+        item.el = e;
+        e.addEventListener("click", () => {
+          if (e.classList.contains("matched")) return;
+          if (!selected) { selected = item; e.classList.add("selected"); return; }
+          if (selected === item) { e.classList.remove("selected"); selected = null; return; }
+          const prev = selected; selected = null;
+          tryMatch(prev, item);
+        });
+        wrap.appendChild(e);
+      });
+      quizHost.appendChild(wrap);
+    }
+
+    function renderQuizDone() {
+      const pct = Math.round((quizState.score / quizState.pool.length) * 100);
+      quizHost.innerHTML = "";
+      quizHost.appendChild(SL.el("div", { class: "done-state" },
+        SL.el("div", { class: "emoji" }, pct >= 80 ? "🏆" : pct >= 50 ? "👍" : "💪"),
+        SL.el("h2", null, "النتيجة: " + quizState.score + "/" + quizState.pool.length + " (" + pct + "%)"),
+        SL.el("button", { class: "btn mt-2", onclick: startQuiz }, "اختبار جديد")
+      ));
+    }
+
+    /* ---------- List tab ---------- */
+    function renderList() {
+      const host = document.getElementById("word-list");
+      host.innerHTML = "";
+      LESSON.words.forEach(w => {
+        const row = SL.el("div", { class: "grammar-example" },
+          SL.el("div", null,
+            SL.el("span", { class: "en bold" }, w.en),
+            w.ipa ? SL.el("span", { class: "ipa" }, " " + w.ipa) : null
+          ),
+          SL.el("div", { class: "ar" }, w.ar),
+          SL.el("button", { class: "icon-btn", onclick: () => player.play("w:" + w.en) }, "🔊")
+        );
+        host.appendChild(row);
+      });
+    }
+
+    /* ---------- Init ---------- */
+    SL.bindTabs();
+    rebuildQueue(); renderCard();
+    renderLeitner(); updateMastery(); renderList();
+
+    // Start quiz lazily when tab clicked
+    document.querySelector('[data-tab="quiz"].tab').addEventListener("click", () => {
+      if (!quizState || quizState.idx >= quizState.pool.length) startQuiz();
+    });
+  })();
+  </script>
+</body>
+</html>
