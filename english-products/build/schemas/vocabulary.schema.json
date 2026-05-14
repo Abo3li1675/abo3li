@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Vocabulary Lesson",
+  "type": "object",
+  "required": ["id", "title", "level", "words"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "pattern": "^vocab-[0-9]{2,3}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "title_en": { "type": "string" },
+    "level": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1"] },
+    "theme": { "type": "string" },
+    "description_ar": { "type": "string" },
+    "words": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["en", "ar"],
+        "additionalProperties": false,
+        "properties": {
+          "en": { "type": "string", "minLength": 1 },
+          "ar": { "type": "string", "minLength": 1 },
+          "ipa": { "type": "string" },
+          "pos": { "type": "string" },
+          "example_en": { "type": "string" },
+          "example_ar": { "type": "string" }
+        }
+      }
+    }
+  }
+}
